@@ -14,6 +14,11 @@ docker system prune -a -f --volumes
 docker compose build app
 echo "Images - done!"
 
+echo "Karafka Web - migrating..."
+docker compose run --rm app bundle exec karafka-web migrate
+echo "Karafka Web - done!"
+
+echo "App - starting..."
 docker compose up app -d
 docker compose up consumer -d
 docker logs --follow app

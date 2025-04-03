@@ -56,5 +56,6 @@ build-iPhoneSimulator/
 # .rubocop-https?--*
 
 my_kafka_app/.env
-my_kafka_app/tmp
+my_kafka_app/tmp/
 my_kafka_app/config/master.key
+my_kafka_app/log/
