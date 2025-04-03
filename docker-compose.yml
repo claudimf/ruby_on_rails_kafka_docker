@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14
+    container_name: db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_development
+    ports:
+      - "5432:5432"
+    networks:
+      - my_network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - my_network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9991:9991"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_JMX_PORT: 9991
+      KAFKA_JMX_HOSTNAME: localhost
+    networks:
+      - my_network
+
+  app:
+    build: ./my_kafka_app
+    image: app_backend
+    container_name: app
+    depends_on:
+      - db
+      - kafka
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./my_kafka_app:/app
+    environment:
+      RAILS_ENV: development
+      KAFKA_BROKERS: kafka:9092
+    env_file:
+      - 'my_kafka_app/.env'
+    command: bash -c "rm -f tmp/pids/server.pid && bundle exec rails db:create db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
+    networks:
+      - my_network
+
+  consumer:
+    image: app_backend
+    container_name: consumer
+    depends_on:
+      - kafka
+      - app
+    volumes:
+      - ./my_kafka_app:/app
+    environment:
+      RAILS_ENV: development
+      KAFKA_BROKERS: kafka:9092
+    env_file:
+      - 'my_kafka_app/.env'
+    command: bash -c "bundle exec karafka server"
+    networks:
+      - my_network
+
+volumes:
+  db_data:
+
+networks:
+  my_network:
+    driver: bridge
